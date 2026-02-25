@@ -67,6 +67,7 @@ const DEFAULT_SETTINGS: CustomHighlightsSettings = {
 export default class CustomHighlightsPlugin extends Plugin {
 	settings!: CustomHighlightsSettings;
 	private styleEl: HTMLStyleElement | null = null;
+	private toolbarButtons = new WeakMap<MarkdownView, HTMLElement>();
 
 	async onload() {
 		await this.loadSettings();
@@ -76,6 +77,9 @@ export default class CustomHighlightsPlugin extends Plugin {
 		this.styleEl.id = "custom-highlights-styles";
 		document.head.appendChild(this.styleEl);
 		this.updateHighlightCSS();
+
+		// Add highlighter toolbar button to active views
+		this.setupToolbarButton();
 
 		// Register editor context menu items
 		this.registerEvent(
@@ -144,6 +148,35 @@ export default class CustomHighlightsPlugin extends Plugin {
 			this.styleEl.remove();
 			this.styleEl = null;
 		}
+	}
+
+	private setupToolbarButton(): void {
+		const addButtonToView = (view: MarkdownView) => {
+			if (this.toolbarButtons.has(view)) return;
+			const action = view.addAction("highlighter", "Apply Highlight", () => {
+				new HighlightPickerModal(
+					this.app,
+					this,
+					view.editor,
+					this.settings.lastUsed,
+				).open();
+			});
+			if (action) {
+				this.toolbarButtons.set(view, action);
+			}
+		};
+
+		// Add to current view
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (activeView) addButtonToView(activeView);
+
+		// Add to new views as they become active
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", () => {
+				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (view) addButtonToView(view);
+			}),
+		);
 	}
 
 	updateHighlightCSS(): void {
