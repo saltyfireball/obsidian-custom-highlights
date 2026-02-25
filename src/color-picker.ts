@@ -68,20 +68,29 @@ export function renderColorPicker(options: ColorPickerOptions): ColorPickerContr
 
 	const row = section.createDiv(`${cssPrefix}-color-picker-row`);
 
-	// Swatch preview
-	const swatch = row.createDiv(`${cssPrefix}-color-swatch`);
-	swatch.setAttribute("role", "button");
-	swatch.setAttribute("tabindex", "0");
-	swatch.setAttribute("aria-label", `Pick ${label.toLowerCase()}`);
-	applySwatch(swatch, currentValue);
+	// Swatch + native input wrapper -- the swatch is a <label> so clicking
+	// it reliably opens the native color picker on all platforms.
+	const swatchWrapper = row.createDiv(`${cssPrefix}-color-swatch-wrapper`);
 
-	// Native color input (visually hidden, triggered by swatch click)
-	const nativeInput = row.createEl("input", {
+	const nativeInput = swatchWrapper.createEl("input", {
 		type: "color",
 		cls: `${cssPrefix}-color-native-input`,
 	}) as HTMLInputElement;
+	const inputId = `ch-color-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+	nativeInput.id = inputId;
 	const parsed = parseColor(currentValue);
 	nativeInput.value = parsed ? rgbaToHex(parsed.r, parsed.g, parsed.b) : "#6c757d";
+
+	const swatch = swatchWrapper.createEl("label", {
+		cls: `${cssPrefix}-color-swatch`,
+		attr: {
+			"for": inputId,
+			"role": "button",
+			"tabindex": "0",
+			"aria-label": `Pick ${label.toLowerCase()}`,
+		},
+	});
+	applySwatch(swatch, currentValue);
 
 	// Text input
 	const textInput = row.createEl("input", {
@@ -90,16 +99,6 @@ export function renderColorPicker(options: ColorPickerOptions): ColorPickerContr
 		placeholder: placeholder ?? "#RRGGBB, #RRGGBBAA, rgb(), rgba()",
 		value: currentValue || "",
 	}) as HTMLInputElement;
-
-	// --- Event handlers ---
-
-	swatch.addEventListener("click", () => nativeInput.click());
-	swatch.addEventListener("keydown", (e) => {
-		if (e.key === "Enter" || e.key === " ") {
-			e.preventDefault();
-			nativeInput.click();
-		}
-	});
 
 	nativeInput.addEventListener("input", () => {
 		currentValue = nativeInput.value;
