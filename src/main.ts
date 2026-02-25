@@ -1,0 +1,481 @@
+import {
+	MarkdownView,
+	Notice,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+	App,
+} from "obsidian";
+import { generateHighlightCSS } from "./css-generator";
+import { HighlightPickerModal } from "./modal";
+import { renderColorPicker } from "./color-picker";
+import { normalizeHighlightId } from "./utils";
+
+// ---------------------------------------------------------------------------
+// Settings types
+// ---------------------------------------------------------------------------
+
+export interface HighlightStyle {
+	id: string;
+	label: string;
+	suffix: string;
+	enabled: boolean;
+}
+
+export interface HighlightPalette {
+	id: string;
+	name: string;
+	color: string;
+	textColor: string;
+	underlineColor: string;
+	fontSize: string;
+	fontWeight: string;
+	enabled: boolean;
+}
+
+export interface CustomHighlightsSettings {
+	styles: HighlightStyle[];
+	palettes: HighlightPalette[];
+	lastUsed: { paletteId: string; styleId: string };
+}
+
+const DEFAULT_SETTINGS: CustomHighlightsSettings = {
+	styles: [
+		{ id: "base", label: "Classic", suffix: "", enabled: true },
+		{ id: "skewed", label: "Skewed", suffix: "-skewed", enabled: true },
+		{ id: "soft-glow", label: "Soft Glow", suffix: "-soft-glow", enabled: true },
+		{ id: "bottom-heavy", label: "Bottom Heavy", suffix: "-bottom-heavy", enabled: true },
+		{ id: "marker-stroke", label: "Marker Stroke", suffix: "-marker-stroke", enabled: true },
+		{ id: "full", label: "Full", suffix: "-full", enabled: true },
+		{ id: "underline", label: "Underline", suffix: "-ul", enabled: false },
+	],
+	palettes: [
+		{ id: "pink", name: "Pink", color: "#ff6188", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
+		{ id: "yellow", name: "Yellow", color: "#ffd866", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
+		{ id: "orange", name: "Orange", color: "#fc9867", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
+		{ id: "green", name: "Green", color: "#a9dc76", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
+		{ id: "blue", name: "Blue", color: "#78dce8", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
+		{ id: "purple", name: "Purple", color: "#ab9df2", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
+	],
+	lastUsed: { paletteId: "pink", styleId: "base" },
+};
+
+// ---------------------------------------------------------------------------
+// Plugin
+// ---------------------------------------------------------------------------
+
+export default class CustomHighlightsPlugin extends Plugin {
+	settings!: CustomHighlightsSettings;
+	private styleEl: HTMLStyleElement | null = null;
+
+	async onload() {
+		await this.loadSettings();
+
+		// Inject dynamic highlight CSS
+		this.styleEl = document.createElement("style");
+		this.styleEl.id = "custom-highlights-styles";
+		document.head.appendChild(this.styleEl);
+		this.updateHighlightCSS();
+
+		// Register editor context menu items
+		this.registerEvent(
+			this.app.workspace.on("editor-menu", (menu, editor) => {
+				menu.addItem((item) => {
+					item.setTitle("Apply Highlight")
+						.setIcon("highlighter")
+						.onClick(() => {
+							new HighlightPickerModal(
+								this.app,
+								this,
+								editor,
+								this.settings.lastUsed,
+							).open();
+						});
+				});
+
+				menu.addItem((item) => {
+					item.setTitle("Apply Last Highlight")
+						.setIcon("star")
+						.onClick(() => {
+							const selection = editor.getSelection();
+							if (!selection) {
+								new Notice("Select some text to highlight");
+								return;
+							}
+							this.applyLastHighlight(editor);
+						});
+				});
+			}),
+		);
+
+		// Register commands
+		this.addCommand({
+			id: "apply-highlight",
+			name: "Apply Highlight",
+			editorCallback: (editor) => {
+				new HighlightPickerModal(
+					this.app,
+					this,
+					editor,
+					this.settings.lastUsed,
+				).open();
+			},
+		});
+
+		this.addCommand({
+			id: "apply-highlight-last",
+			name: "Apply Last Highlight",
+			editorCallback: (editor) => {
+				const selection = editor.getSelection();
+				if (!selection) {
+					new Notice("Select some text to highlight");
+					return;
+				}
+				this.applyLastHighlight(editor);
+			},
+		});
+
+		// Settings tab
+		this.addSettingTab(new CustomHighlightsSettingTab(this.app, this));
+	}
+
+	onunload() {
+		if (this.styleEl) {
+			this.styleEl.remove();
+			this.styleEl = null;
+		}
+	}
+
+	updateHighlightCSS(): void {
+		if (!this.styleEl) return;
+		this.styleEl.textContent = generateHighlightCSS(
+			this.settings.palettes,
+			this.settings.styles,
+		);
+	}
+
+	async loadSettings() {
+		const saved = await this.loadData();
+		this.settings = Object.assign(
+			{},
+			JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
+			saved || {},
+		);
+		// Ensure arrays exist (deep merge safety)
+		if (!Array.isArray(this.settings.styles)) {
+			this.settings.styles = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.styles));
+		}
+		if (!Array.isArray(this.settings.palettes)) {
+			this.settings.palettes = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.palettes));
+		}
+		if (!this.settings.lastUsed) {
+			this.settings.lastUsed = { ...DEFAULT_SETTINGS.lastUsed };
+		}
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
+	}
+
+	private applyLastHighlight(editor: any): void {
+		const selection = editor.getSelection();
+		if (!selection) return;
+		const paletteId = this.settings.lastUsed?.paletteId || "pink";
+		const styleId = this.settings.lastUsed?.styleId || "base";
+		const style = (this.settings.styles || []).find((s) => s.id === styleId);
+		const suffix = style?.suffix || "";
+		const className = `hltr-m-${paletteId}${suffix}`;
+		editor.replaceSelection(`<mark class="${className}">${selection}</mark>`);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Settings Tab
+// ---------------------------------------------------------------------------
+
+class CustomHighlightsSettingTab extends PluginSettingTab {
+	plugin: CustomHighlightsPlugin;
+
+	constructor(app: App, plugin: CustomHighlightsPlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
+		containerEl.addClass("ch-settings");
+
+		// --- Header ---
+		containerEl.createEl("h2", { text: "Custom Highlights" });
+		containerEl.createEl("p", {
+			text: "Create custom highlight palettes and choose which mark styles to use. "
+				+ "Select text in your note and use the command palette or right-click menu to apply highlights.",
+			cls: "ch-hint",
+		});
+
+		// --- How to Use ---
+		const howTo = containerEl.createDiv("ch-how-to");
+		howTo.createEl("h3", { text: "How to Use" });
+		const steps = howTo.createEl("ol");
+		steps.createEl("li", { text: "Create highlight palettes below (or use the defaults)." });
+		steps.createEl("li", { text: "Enable the mark styles you want to use." });
+		steps.createEl("li", { text: "Select text in your note." });
+		steps.createEl("li", { text: "Use \"Apply Highlight\" from the command palette (Ctrl/Cmd+P) or right-click menu." });
+		steps.createEl("li", { text: "Pick a palette and style, then click Apply." });
+		howTo.createEl("p", {
+			text: "Tip: Use \"Apply Last Highlight\" to quickly re-apply your most recent choice.",
+			cls: "ch-hint",
+		});
+
+		// --- Styles Section ---
+		containerEl.createEl("h3", { text: "Styles" });
+		containerEl.createEl("p", {
+			text: "Toggle which highlight styles are available when applying highlights. "
+				+ "Each style creates a different visual effect using the palette color.",
+			cls: "ch-hint",
+		});
+
+		const styleDescriptions: Record<string, string> = {
+			base: "Gradient background with rounded corners",
+			skewed: "Slightly rotated background block",
+			"soft-glow": "Soft colored glow effect",
+			"bottom-heavy": "Gradient heavier at the bottom",
+			"marker-stroke": "Highlighter pen effect (bottom 70%)",
+			full: "Full coverage with shadow and slight rotation",
+			underline: "Colored background with underline decoration",
+		};
+
+		const styles = this.plugin.settings.styles || [];
+		styles.forEach((style) => {
+			new Setting(containerEl)
+				.setName(style.label)
+				.setDesc(styleDescriptions[style.id] || (style.suffix ? `Class suffix: ${style.suffix}` : "Base highlight style"))
+				.addToggle((toggle) => {
+					toggle.setValue(!!style.enabled);
+					toggle.onChange(async (value) => {
+						style.enabled = value;
+						await this.plugin.saveSettings();
+						this.plugin.updateHighlightCSS();
+					});
+				});
+		});
+
+		// --- Palettes Section ---
+		containerEl.createEl("h3", { text: "Palettes" });
+		containerEl.createEl("p", {
+			text: "Each palette defines a color used for highlights. "
+				+ "The palette ID becomes part of the CSS class name (e.g. hltr-m-pink). "
+				+ "Changing an ID will affect any existing highlights that use it.",
+			cls: "ch-hint",
+		});
+
+		const addBtn = containerEl.createEl("button", {
+			text: "+ Add Palette",
+			cls: "ch-add-btn",
+		});
+		addBtn.addEventListener("click", async () => {
+			const id = `highlight-${Date.now()}`;
+			this.plugin.settings.palettes.push({
+				id,
+				name: "New Highlight",
+				color: "#ffd866",
+				textColor: "",
+				underlineColor: "",
+				fontSize: "",
+				fontWeight: "",
+				enabled: true,
+			});
+			await this.plugin.saveSettings();
+			this.plugin.updateHighlightCSS();
+			this.display();
+		});
+
+		const palettes = this.plugin.settings.palettes || [];
+		if (palettes.length === 0) {
+			containerEl.createEl("p", {
+				text: "No highlight palettes yet. Add one to get started.",
+				cls: "ch-empty-message",
+			});
+			return;
+		}
+
+		const list = containerEl.createDiv("ch-palette-list");
+		palettes.forEach((palette, index) => {
+			this.renderPaletteItem(list, palette, index);
+		});
+	}
+
+	private renderPaletteItem(
+		list: HTMLElement,
+		palette: HighlightPalette,
+		index: number,
+	): void {
+		const item = list.createDiv("ch-palette-item");
+		const header = item.createDiv("ch-palette-header");
+
+		// Preview
+		const preview = header.createDiv("ch-palette-preview");
+		const previewMark = preview.createEl("mark", {
+			text: palette.name || palette.id,
+		});
+		previewMark.className = `hltr-m-${palette.id}`;
+
+		// Actions
+		const actions = header.createDiv("ch-palette-actions");
+		const enabledToggle = actions.createEl("input", {
+			type: "checkbox",
+			cls: "ch-toggle",
+		});
+		enabledToggle.checked = palette.enabled !== false;
+		enabledToggle.addEventListener("change", async () => {
+			palette.enabled = enabledToggle.checked;
+			await this.plugin.saveSettings();
+			this.plugin.updateHighlightCSS();
+		});
+
+		const editButton = actions.createEl("button", { text: "Edit" });
+		const removeBtn = actions.createEl("button", {
+			text: "Remove",
+			cls: "ch-remove-btn",
+		});
+
+		// Expandable controls
+		const controls = item.createDiv("ch-palette-controls");
+		controls.style.display = "none";
+
+		editButton.addEventListener("click", () => {
+			const isHidden = controls.style.display === "none";
+			controls.style.display = isHidden ? "flex" : "none";
+			editButton.textContent = isHidden ? "Hide" : "Edit";
+		});
+
+		removeBtn.addEventListener("click", async () => {
+			this.plugin.settings.palettes.splice(index, 1);
+			await this.plugin.saveSettings();
+			this.plugin.updateHighlightCSS();
+			this.display();
+		});
+
+		// Name
+		const nameControl = controls.createDiv("ch-control");
+		nameControl.createEl("label", { text: "Name" });
+		const nameInput = nameControl.createEl("input", {
+			type: "text",
+			value: palette.name || "",
+			placeholder: "Display name",
+			cls: "ch-input",
+		});
+		nameInput.addEventListener("change", async () => {
+			palette.name = nameInput.value.trim();
+			previewMark.textContent = palette.name || palette.id;
+			await this.plugin.saveSettings();
+		});
+
+		// Class ID
+		const idControl = controls.createDiv("ch-control");
+		idControl.createEl("label", { text: "Class ID" });
+		const idInput = idControl.createEl("input", {
+			type: "text",
+			value: palette.id || "",
+			placeholder: "CSS class identifier",
+			cls: "ch-input ch-input-mono",
+		});
+		idInput.addEventListener("change", async () => {
+			const normalized = normalizeHighlightId(idInput.value || palette.id || "");
+			if (!normalized) {
+				new Notice("Palette ID is required");
+				idInput.value = palette.id;
+				return;
+			}
+			palette.id = normalized;
+			idInput.value = normalized;
+			previewMark.className = `hltr-m-${palette.id}`;
+			previewMark.textContent = palette.name || palette.id;
+			await this.plugin.saveSettings();
+			this.plugin.updateHighlightCSS();
+		});
+
+		// Highlight color (using the reusable color picker)
+		renderColorPicker({
+			container: controls,
+			label: "Highlight color",
+			value: palette.color || "",
+			onChange: async (value) => {
+				palette.color = value;
+				await this.plugin.saveSettings();
+				this.plugin.updateHighlightCSS();
+			},
+		});
+
+		// Text color
+		renderColorPicker({
+			container: controls,
+			label: "Text color",
+			value: palette.textColor || "",
+			placeholder: "Text color (optional)",
+			onChange: async (value) => {
+				palette.textColor = value;
+				await this.plugin.saveSettings();
+				this.plugin.updateHighlightCSS();
+			},
+		});
+
+		// Underline color
+		renderColorPicker({
+			container: controls,
+			label: "Underline color",
+			value: palette.underlineColor || "",
+			placeholder: "Underline color (optional)",
+			onChange: async (value) => {
+				palette.underlineColor = value;
+				await this.plugin.saveSettings();
+				this.plugin.updateHighlightCSS();
+			},
+		});
+
+		// Font size
+		const fontSizeControl = controls.createDiv("ch-control");
+		fontSizeControl.createEl("label", { text: "Font size" });
+		const fontSizeInput = fontSizeControl.createEl("input", {
+			type: "text",
+			value: palette.fontSize || "",
+			placeholder: "Font size (optional, e.g. 14px)",
+			cls: "ch-input",
+		});
+		fontSizeInput.addEventListener("change", async () => {
+			palette.fontSize = fontSizeInput.value.trim();
+			await this.plugin.saveSettings();
+			this.plugin.updateHighlightCSS();
+		});
+
+		// Font weight
+		const fontWeightControl = controls.createDiv("ch-control");
+		fontWeightControl.createEl("label", { text: "Font weight" });
+		const fontWeightSelect = fontWeightControl.createEl("select", {
+			cls: "ch-input",
+		});
+		const fontWeightOptions = [
+			{ label: "Default", value: "" },
+			{ label: "Light", value: "300" },
+			{ label: "Normal", value: "400" },
+			{ label: "Medium", value: "500" },
+			{ label: "Semibold", value: "600" },
+			{ label: "Bold", value: "700" },
+			{ label: "Extra Bold", value: "800" },
+			{ label: "Black", value: "900" },
+		];
+		fontWeightOptions.forEach((opt) => {
+			fontWeightSelect.createEl("option", {
+				text: opt.label,
+				value: opt.value,
+			});
+		});
+		fontWeightSelect.value = palette.fontWeight || "";
+		fontWeightSelect.addEventListener("change", async () => {
+			palette.fontWeight = fontWeightSelect.value;
+			await this.plugin.saveSettings();
+			this.plugin.updateHighlightCSS();
+		});
+	}
+}
