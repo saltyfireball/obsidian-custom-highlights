@@ -2,7 +2,7 @@
  * Reusable color picker component for Obsidian plugins.
  *
  * Supports: #RRGGBB, #RRGGBBAA, rgb(r,g,b), rgba(r,g,b,a)
- * Provides: visual swatch preview, native color picker, text input.
+ * Provides: visual swatch preview, native color picker, text input, opacity slider.
  *
  * This module is self-contained and can be copied to other plugins.
  */
@@ -46,10 +46,12 @@ export interface ColorPickerControls {
  *
  * Layout:
  *   [Label]
- *   [Swatch] [Native Picker (hidden)] [Text Input: #hex / rgb / rgba]
+ *   [Swatch] [Native Picker (hidden)] [Text Input] [Clear]
+ *   [Opacity slider] [Opacity value]
  *
  * The swatch shows the current color and opens the native picker on click.
  * The text input accepts any supported format and validates on change.
+ * The opacity slider adjusts alpha from 0% to 100%.
  */
 export function renderColorPicker(options: ColorPickerOptions): ColorPickerControls {
 	const {
@@ -61,15 +63,29 @@ export function renderColorPicker(options: ColorPickerOptions): ColorPickerContr
 		cssPrefix = "ch",
 	} = options;
 
-	let currentValue = value;
+	let currentR = 0;
+	let currentG = 0;
+	let currentB = 0;
+	let currentA = 1;
+	let isEmpty = true;
+
+	// Parse initial value
+	const initialParsed = parseColor(value);
+	if (initialParsed) {
+		currentR = initialParsed.r;
+		currentG = initialParsed.g;
+		currentB = initialParsed.b;
+		currentA = initialParsed.a;
+		isEmpty = false;
+	}
 
 	const section = container.createDiv(`${cssPrefix}-color-picker`);
 	section.createEl("label", { text: label, cls: `${cssPrefix}-color-picker-label` });
 
+	// --- Row 1: Swatch + text input + clear ---
 	const row = section.createDiv(`${cssPrefix}-color-picker-row`);
 
-	// Swatch + native input wrapper -- the swatch is a <label> so clicking
-	// it reliably opens the native color picker on all platforms.
+	// Swatch + native input wrapper
 	const swatchWrapper = row.createDiv(`${cssPrefix}-color-swatch-wrapper`);
 
 	const nativeInput = swatchWrapper.createEl("input", {
@@ -78,8 +94,7 @@ export function renderColorPicker(options: ColorPickerOptions): ColorPickerContr
 	}) as HTMLInputElement;
 	const inputId = `ch-color-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 	nativeInput.id = inputId;
-	const parsed = parseColor(currentValue);
-	nativeInput.value = parsed ? rgbaToHex(parsed.r, parsed.g, parsed.b) : "#6c757d";
+	nativeInput.value = isEmpty ? "#6c757d" : rgbaToHex(currentR, currentG, currentB);
 
 	const swatch = swatchWrapper.createEl("label", {
 		cls: `${cssPrefix}-color-swatch`,
@@ -90,32 +105,88 @@ export function renderColorPicker(options: ColorPickerOptions): ColorPickerContr
 			"aria-label": `Pick ${label.toLowerCase()}`,
 		},
 	});
-	applySwatch(swatch, currentValue);
+	applySwatch(swatch, isEmpty ? "" : formatOutput(currentR, currentG, currentB, currentA));
 
 	// Text input
 	const textInput = row.createEl("input", {
 		type: "text",
 		cls: `${cssPrefix}-color-text-input`,
 		placeholder: placeholder ?? "#RRGGBB, #RRGGBBAA, rgb(), rgba()",
-		value: currentValue || "",
+		value: value || "",
 	}) as HTMLInputElement;
 
+	// Clear button
+	const clearBtn = row.createEl("button", {
+		cls: `${cssPrefix}-color-clear-btn`,
+		attr: { type: "button", "aria-label": "Clear color" },
+	});
+	clearBtn.innerHTML = "&#x2715;";
+
+	// --- Row 2: Opacity slider ---
+	const opacityRow = section.createDiv(`${cssPrefix}-color-opacity-row`);
+	const opacityLabel = opacityRow.createEl("label", {
+		text: "Opacity",
+		cls: `${cssPrefix}-color-opacity-label`,
+	});
+
+	const opacitySlider = opacityRow.createEl("input", {
+		type: "range",
+		cls: `${cssPrefix}-color-opacity-slider`,
+		attr: { min: "0", max: "100", step: "1" },
+	}) as HTMLInputElement;
+	opacitySlider.value = String(Math.round(currentA * 100));
+	updateSliderTrack(opacitySlider, currentA);
+
+	const opacityValue = opacityRow.createEl("span", {
+		text: `${Math.round(currentA * 100)}%`,
+		cls: `${cssPrefix}-color-opacity-value`,
+	});
+
+	// --- Shared update logic ---
+
+	function emitChange(): void {
+		const output = isEmpty ? "" : formatOutput(currentR, currentG, currentB, currentA);
+		textInput.value = output;
+		applySwatch(swatch, output);
+		if (!isEmpty) {
+			nativeInput.value = rgbaToHex(currentR, currentG, currentB);
+		}
+		opacitySlider.value = String(Math.round(currentA * 100));
+		opacityValue.textContent = `${Math.round(currentA * 100)}%`;
+		updateSliderTrack(opacitySlider, currentA);
+		onChange(output);
+	}
+
+	// --- Event handlers ---
+
 	nativeInput.addEventListener("input", () => {
-		currentValue = nativeInput.value;
-		textInput.value = currentValue;
-		applySwatch(swatch, currentValue);
-		onChange(currentValue);
+		const p = parseColor(nativeInput.value);
+		if (p) {
+			currentR = p.r;
+			currentG = p.g;
+			currentB = p.b;
+			// Keep current alpha
+			isEmpty = false;
+			emitChange();
+		}
 	});
 
 	textInput.addEventListener("input", () => {
 		const val = textInput.value.trim();
-		// Live-update swatch as user types (if valid)
-		if (parseColor(val)) {
+		const p = parseColor(val);
+		if (p) {
+			currentR = p.r;
+			currentG = p.g;
+			currentB = p.b;
+			currentA = p.a;
+			isEmpty = false;
 			applySwatch(swatch, val);
-			// Sync native picker if it's a plain hex
 			if (isHexColor(val)) {
 				nativeInput.value = val;
 			}
+			opacitySlider.value = String(Math.round(currentA * 100));
+			opacityValue.textContent = `${Math.round(currentA * 100)}%`;
+			updateSliderTrack(opacitySlider, currentA);
 		} else if (val === "") {
 			applySwatch(swatch, "");
 		}
@@ -123,38 +194,72 @@ export function renderColorPicker(options: ColorPickerOptions): ColorPickerContr
 
 	textInput.addEventListener("change", () => {
 		const val = textInput.value.trim();
-		currentValue = val;
-		applySwatch(swatch, val);
-		if (isHexColor(val)) {
-			nativeInput.value = val;
+		const p = parseColor(val);
+		if (p) {
+			currentR = p.r;
+			currentG = p.g;
+			currentB = p.b;
+			currentA = p.a;
+			isEmpty = false;
+		} else if (val === "") {
+			isEmpty = true;
+			currentA = 1;
 		}
-		onChange(val);
+		emitChange();
 	});
 
-	// Clear button
-	const clearBtn = row.createEl("button", {
-		cls: `${cssPrefix}-color-clear-btn`,
-		attr: { type: "button", "aria-label": "Clear color" },
+	opacitySlider.addEventListener("input", () => {
+		currentA = parseInt(opacitySlider.value, 10) / 100;
+		opacityValue.textContent = `${Math.round(currentA * 100)}%`;
+		updateSliderTrack(opacitySlider, currentA);
+		if (!isEmpty) {
+			const output = formatOutput(currentR, currentG, currentB, currentA);
+			textInput.value = output;
+			applySwatch(swatch, output);
+		}
 	});
-	clearBtn.innerHTML = "&#x2715;"; // x mark
+
+	opacitySlider.addEventListener("change", () => {
+		currentA = parseInt(opacitySlider.value, 10) / 100;
+		if (!isEmpty) {
+			emitChange();
+		}
+	});
+
 	clearBtn.addEventListener("click", () => {
-		currentValue = "";
+		isEmpty = true;
+		currentA = 1;
 		textInput.value = "";
 		nativeInput.value = "#6c757d";
+		opacitySlider.value = "100";
+		opacityValue.textContent = "100%";
+		updateSliderTrack(opacitySlider, 1);
 		applySwatch(swatch, "");
 		onChange("");
 	});
 
 	return {
 		setValue(val: string) {
-			currentValue = val;
+			const p = parseColor(val);
+			if (p) {
+				currentR = p.r;
+				currentG = p.g;
+				currentB = p.b;
+				currentA = p.a;
+				isEmpty = false;
+			} else {
+				isEmpty = true;
+				currentA = 1;
+			}
 			textInput.value = val;
 			applySwatch(swatch, val);
-			const p = parseColor(val);
 			if (p) nativeInput.value = rgbaToHex(p.r, p.g, p.b);
+			opacitySlider.value = String(Math.round(currentA * 100));
+			opacityValue.textContent = `${Math.round(currentA * 100)}%`;
+			updateSliderTrack(opacitySlider, currentA);
 		},
 		getValue() {
-			return currentValue;
+			return isEmpty ? "" : formatOutput(currentR, currentG, currentB, currentA);
 		},
 		el: section,
 	};
@@ -173,4 +278,23 @@ function applySwatch(el: HTMLElement, value: string): void {
 	}
 	el.classList.remove("ch-color-swatch-empty");
 	el.style.backgroundColor = trimmed;
+}
+
+/**
+ * Format the current RGBA values as a color string.
+ * Uses #RRGGBB when fully opaque, #RRGGBBAA otherwise.
+ */
+function formatOutput(r: number, g: number, b: number, a: number): string {
+	if (a >= 1) {
+		return rgbaToHex(r, g, b);
+	}
+	return rgbaToHex(r, g, b, a);
+}
+
+/**
+ * Update the slider track fill to visually indicate the current value.
+ */
+function updateSliderTrack(slider: HTMLInputElement, alpha: number): void {
+	const pct = Math.round(alpha * 100);
+	slider.style.setProperty("--slider-progress", `${pct}%`);
 }

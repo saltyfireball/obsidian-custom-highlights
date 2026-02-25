@@ -244,6 +244,74 @@
 	border-color: var(--text-error);
 }
 
+/* Opacity slider row */
+
+.ch-color-opacity-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.ch-color-opacity-label {
+	font-size: 0.8em;
+	color: var(--text-muted);
+	min-width: 48px;
+}
+
+.ch-color-opacity-slider {
+	-webkit-appearance: none;
+	appearance: none;
+	flex: 1;
+	max-width: 200px;
+	height: 6px;
+	border-radius: 3px;
+	background: linear-gradient(
+		to right,
+		var(--interactive-accent) 0%,
+		var(--interactive-accent) var(--slider-progress, 100%),
+		var(--background-modifier-border) var(--slider-progress, 100%),
+		var(--background-modifier-border) 100%
+	);
+	outline: none;
+	cursor: pointer;
+}
+
+.ch-color-opacity-slider::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	border: 2px solid var(--background-primary);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+	cursor: pointer;
+	transition: transform 0.1s ease;
+}
+
+.ch-color-opacity-slider::-webkit-slider-thumb:hover {
+	transform: scale(1.15);
+}
+
+.ch-color-opacity-slider::-moz-range-thumb {
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	border: 2px solid var(--background-primary);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+	cursor: pointer;
+}
+
+.ch-color-opacity-value {
+	font-size: 0.8em;
+	color: var(--text-muted);
+	min-width: 36px;
+	text-align: right;
+	font-family: var(--font-monospace);
+}
+
 /* ---------------------------------------------------------------------------
    Highlight picker modal
    --------------------------------------------------------------------------- */
