@@ -23,6 +23,8 @@ Create custom highlight palettes with multiple mark styles for your Obsidian not
 
 ### From Obsidian Community Plugins
 
+**Might not be approved yet**
+
 1. Open Obsidian Settings
 2. Go to Community Plugins and disable Safe Mode
 3. Click Browse and search for "Custom Highlights"
