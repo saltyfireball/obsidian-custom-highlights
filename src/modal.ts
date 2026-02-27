@@ -2,8 +2,8 @@
  * Modal for picking and applying highlight palettes + styles to selected text.
  */
 
-import { Modal, Notice } from "obsidian";
-import type { HighlightStyle, HighlightPalette, CustomHighlightsSettings } from "./main";
+import { App, Editor, Modal, Notice } from "obsidian";
+import type { CustomHighlightsSettings } from "./main";
 
 export interface HighlightSelection {
 	paletteId?: string;
@@ -17,13 +17,13 @@ export interface HighlightPickerPlugin {
 
 export class HighlightPickerModal extends Modal {
 	private plugin: HighlightPickerPlugin;
-	private editor: any;
+	private editor: Editor;
 	private initialSelection: HighlightSelection | null;
 
 	constructor(
-		app: any,
+		app: App,
 		plugin: HighlightPickerPlugin,
-		editor: any,
+		editor: Editor,
 		initialSelection: HighlightSelection | null = null,
 	) {
 		super(app);
@@ -37,9 +37,9 @@ export class HighlightPickerModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("ch-highlight-picker-modal");
 
-		contentEl.createEl("h2", { text: "Apply Highlight" });
+		contentEl.createEl("h2", { text: "Apply highlight" });
 
-		const selectionText = (this.editor?.getSelection?.() || "").trim();
+		const selectionText = (this.editor.getSelection() || "").trim();
 
 		const palettes = (this.plugin.settings.palettes || []).filter(
 			(p) => p.enabled !== false,
@@ -50,7 +50,7 @@ export class HighlightPickerModal extends Modal {
 
 		if (palettes.length === 0 || styles.length === 0) {
 			contentEl.createEl("p", {
-				text: "Enable at least one palette and one style in the Custom Highlights settings.",
+				text: "Enable at least one palette and one style in settings.",
 				cls: "ch-empty-message",
 			});
 			return;

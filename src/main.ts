@@ -1,4 +1,5 @@
 import {
+	Editor,
 	MarkdownView,
 	Notice,
 	Plugin,
@@ -73,6 +74,7 @@ export default class CustomHighlightsPlugin extends Plugin {
 		await this.loadSettings();
 
 		// Inject dynamic highlight CSS
+		// eslint-disable-next-line obsidianmd/no-forbidden-elements -- dynamic CSS generation requires a style element; styles.css cannot handle runtime palette changes
 		this.styleEl = document.createElement("style");
 		this.styleEl.id = "custom-highlights-styles";
 		document.head.appendChild(this.styleEl);
@@ -85,7 +87,7 @@ export default class CustomHighlightsPlugin extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on("editor-menu", (menu, editor) => {
 				menu.addItem((item) => {
-					item.setTitle("Apply Highlight")
+					item.setTitle("Apply highlight")
 						.setIcon("highlighter")
 						.onClick(() => {
 							new HighlightPickerModal(
@@ -98,7 +100,7 @@ export default class CustomHighlightsPlugin extends Plugin {
 				});
 
 				menu.addItem((item) => {
-					item.setTitle("Apply Last Highlight")
+					item.setTitle("Apply last highlight")
 						.setIcon("star")
 						.onClick(() => {
 							const selection = editor.getSelection();
@@ -115,7 +117,7 @@ export default class CustomHighlightsPlugin extends Plugin {
 		// Register commands
 		this.addCommand({
 			id: "apply-highlight",
-			name: "Apply Highlight",
+			name: "Apply highlight",
 			editorCallback: (editor) => {
 				new HighlightPickerModal(
 					this.app,
@@ -128,7 +130,7 @@ export default class CustomHighlightsPlugin extends Plugin {
 
 		this.addCommand({
 			id: "apply-highlight-last",
-			name: "Apply Last Highlight",
+			name: "Apply last highlight",
 			editorCallback: (editor) => {
 				const selection = editor.getSelection();
 				if (!selection) {
@@ -188,18 +190,19 @@ export default class CustomHighlightsPlugin extends Plugin {
 	}
 
 	async loadSettings() {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- loadData returns any
 		const saved = await this.loadData();
 		this.settings = Object.assign(
 			{},
-			JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
-			saved || {},
+			JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as CustomHighlightsSettings,
+			(saved || {}) as Partial<CustomHighlightsSettings>,
 		);
 		// Ensure arrays exist (deep merge safety)
 		if (!Array.isArray(this.settings.styles)) {
-			this.settings.styles = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.styles));
+			this.settings.styles = (JSON.parse(JSON.stringify(DEFAULT_SETTINGS.styles)) as HighlightStyle[]);
 		}
 		if (!Array.isArray(this.settings.palettes)) {
-			this.settings.palettes = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.palettes));
+			this.settings.palettes = (JSON.parse(JSON.stringify(DEFAULT_SETTINGS.palettes)) as HighlightPalette[]);
 		}
 		if (!this.settings.lastUsed) {
 			this.settings.lastUsed = { ...DEFAULT_SETTINGS.lastUsed };
@@ -210,7 +213,7 @@ export default class CustomHighlightsPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	private applyLastHighlight(editor: any): void {
+	private applyLastHighlight(editor: Editor): void {
 		const selection = editor.getSelection();
 		if (!selection) return;
 		const paletteId = this.settings.lastUsed?.paletteId || "pink";
@@ -240,7 +243,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 		containerEl.addClass("ch-settings");
 
 		// --- Header ---
-		new Setting(containerEl).setName("Custom highlights").setHeading();
+		;
 		containerEl.createEl("p", {
 			text: "Create custom highlight palettes and choose which mark styles to use. "
 				+ "Select text in your note and use the command palette or right-click menu to apply highlights.",
@@ -254,10 +257,10 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 		steps.createEl("li", { text: "Create highlight palettes below (or use the defaults)." });
 		steps.createEl("li", { text: "Enable the mark styles you want to use." });
 		steps.createEl("li", { text: "Select text in your note." });
-		steps.createEl("li", { text: "Use \"Apply Highlight\" from the command palette (Ctrl/Cmd+P) or right-click menu." });
-		steps.createEl("li", { text: "Pick a palette and style, then click Apply." });
+		steps.createEl("li", { text: "Use \"Apply highlight\" from the command palette (Ctrl/Cmd+P) or right-click menu." });
+		steps.createEl("li", { text: "Pick a palette and style, then click apply." });
 		howTo.createEl("p", {
-			text: "Tip: Use \"Apply Last Highlight\" to quickly re-apply your most recent choice.",
+			text: "Tip: use \"apply last highlight\" to quickly re-apply your most recent choice.",
 			cls: "ch-hint",
 		});
 
@@ -286,9 +289,9 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 				.setDesc(styleDescriptions[style.id] || (style.suffix ? `Class suffix: ${style.suffix}` : "Base highlight style"))
 				.addToggle((toggle) => {
 					toggle.setValue(!!style.enabled);
-					toggle.onChange(async (value) => {
+					toggle.onChange((value) => {
 						style.enabled = value;
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 						this.plugin.updateHighlightCSS();
 					});
 				});
@@ -304,10 +307,10 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 		});
 
 		const addBtn = containerEl.createEl("button", {
-			text: "+ Add Palette",
+			text: "Add palette",
 			cls: "ch-add-btn",
 		});
-		addBtn.addEventListener("click", async () => {
+		addBtn.addEventListener("click", () => {
 			const id = `highlight-${Date.now()}`;
 			this.plugin.settings.palettes.push({
 				id,
@@ -319,7 +322,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 				fontWeight: "",
 				enabled: true,
 			});
-			await this.plugin.saveSettings();
+			void this.plugin.saveSettings();
 			this.plugin.updateHighlightCSS();
 			this.display();
 		});
@@ -361,9 +364,9 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			cls: "ch-toggle",
 		});
 		enabledToggle.checked = palette.enabled !== false;
-		enabledToggle.addEventListener("change", async () => {
+		enabledToggle.addEventListener("change", () => {
 			palette.enabled = enabledToggle.checked;
-			await this.plugin.saveSettings();
+			void this.plugin.saveSettings();
 			this.plugin.updateHighlightCSS();
 		});
 
@@ -375,17 +378,17 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 
 		// Expandable controls
 		const controls = item.createDiv("ch-palette-controls");
-		controls.style.display = "none";
+		controls.addClass("ch-hidden");
 
 		editButton.addEventListener("click", () => {
-			const isHidden = controls.style.display === "none";
-			controls.style.display = isHidden ? "flex" : "none";
+			const isHidden = controls.hasClass("ch-hidden");
+			controls.toggleClass("ch-hidden", !isHidden);
 			editButton.textContent = isHidden ? "Hide" : "Edit";
 		});
 
-		removeBtn.addEventListener("click", async () => {
+		removeBtn.addEventListener("click", () => {
 			this.plugin.settings.palettes.splice(index, 1);
-			await this.plugin.saveSettings();
+			void this.plugin.saveSettings();
 			this.plugin.updateHighlightCSS();
 			this.display();
 		});
@@ -399,10 +402,10 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			placeholder: "Display name",
 			cls: "ch-input",
 		});
-		nameInput.addEventListener("change", async () => {
+		nameInput.addEventListener("change", () => {
 			palette.name = nameInput.value.trim();
 			previewMark.textContent = palette.name || palette.id;
-			await this.plugin.saveSettings();
+			void this.plugin.saveSettings();
 		});
 
 		// Class ID
@@ -414,7 +417,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			placeholder: "CSS class identifier",
 			cls: "ch-input ch-input-mono",
 		});
-		idInput.addEventListener("change", async () => {
+		idInput.addEventListener("change", () => {
 			const normalized = normalizeHighlightId(idInput.value || palette.id || "");
 			if (!normalized) {
 				new Notice("Palette ID is required");
@@ -425,7 +428,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			idInput.value = normalized;
 			previewMark.className = `hltr-m-${palette.id}`;
 			previewMark.textContent = palette.name || palette.id;
-			await this.plugin.saveSettings();
+			void this.plugin.saveSettings();
 			this.plugin.updateHighlightCSS();
 		});
 
@@ -434,9 +437,9 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			container: controls,
 			label: "Highlight color",
 			value: palette.color || "",
-			onChange: async (value) => {
+			onChange: (value) => {
 				palette.color = value;
-				await this.plugin.saveSettings();
+				void this.plugin.saveSettings();
 				this.plugin.updateHighlightCSS();
 			},
 		});
@@ -447,9 +450,9 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			label: "Text color",
 			value: palette.textColor || "",
 			placeholder: "Text color (optional)",
-			onChange: async (value) => {
+			onChange: (value) => {
 				palette.textColor = value;
-				await this.plugin.saveSettings();
+				void this.plugin.saveSettings();
 				this.plugin.updateHighlightCSS();
 			},
 		});
@@ -460,9 +463,9 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			label: "Underline color",
 			value: palette.underlineColor || "",
 			placeholder: "Underline color (optional)",
-			onChange: async (value) => {
+			onChange: (value) => {
 				palette.underlineColor = value;
-				await this.plugin.saveSettings();
+				void this.plugin.saveSettings();
 				this.plugin.updateHighlightCSS();
 			},
 		});
@@ -476,9 +479,9 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			placeholder: "Font size (optional, e.g. 14px)",
 			cls: "ch-input",
 		});
-		fontSizeInput.addEventListener("change", async () => {
+		fontSizeInput.addEventListener("change", () => {
 			palette.fontSize = fontSizeInput.value.trim();
-			await this.plugin.saveSettings();
+			void this.plugin.saveSettings();
 			this.plugin.updateHighlightCSS();
 		});
 
@@ -505,9 +508,9 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			});
 		});
 		fontWeightSelect.value = palette.fontWeight || "";
-		fontWeightSelect.addEventListener("change", async () => {
+		fontWeightSelect.addEventListener("change", () => {
 			palette.fontWeight = fontWeightSelect.value;
-			await this.plugin.saveSettings();
+			void this.plugin.saveSettings();
 			this.plugin.updateHighlightCSS();
 		});
 	}

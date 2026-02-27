@@ -34,9 +34,9 @@ export function hexToRgb(value?: string): string | null {
 		/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i,
 	);
 	if (rgbaMatch) {
-		const r = Math.min(255, Math.max(0, parseFloat(rgbaMatch[1]!)));
-		const g = Math.min(255, Math.max(0, parseFloat(rgbaMatch[2]!)));
-		const b = Math.min(255, Math.max(0, parseFloat(rgbaMatch[3]!)));
+		const r = Math.min(255, Math.max(0, parseFloat(rgbaMatch[1])));
+		const g = Math.min(255, Math.max(0, parseFloat(rgbaMatch[2])));
+		const b = Math.min(255, Math.max(0, parseFloat(rgbaMatch[3])));
 		if ([r, g, b].some((val) => Number.isNaN(val))) return null;
 		return `${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}`;
 	}
@@ -77,9 +77,9 @@ export function parseColor(
 		/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i,
 	);
 	if (rgbaMatch) {
-		const r = Math.min(255, Math.max(0, Math.round(parseFloat(rgbaMatch[1]!))));
-		const g = Math.min(255, Math.max(0, Math.round(parseFloat(rgbaMatch[2]!))));
-		const b = Math.min(255, Math.max(0, Math.round(parseFloat(rgbaMatch[3]!))));
+		const r = Math.min(255, Math.max(0, Math.round(parseFloat(rgbaMatch[1]))));
+		const g = Math.min(255, Math.max(0, Math.round(parseFloat(rgbaMatch[2]))));
+		const b = Math.min(255, Math.max(0, Math.round(parseFloat(rgbaMatch[3]))));
 		const a = rgbaMatch[4] !== undefined
 			? Math.min(1, Math.max(0, parseFloat(rgbaMatch[4])))
 			: 1;
