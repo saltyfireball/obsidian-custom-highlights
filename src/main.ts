@@ -240,7 +240,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 		containerEl.addClass("ch-settings");
 
 		// --- Header ---
-		containerEl.createEl("h2", { text: "Custom Highlights" });
+		new Setting(containerEl).setName("Custom highlights").setHeading();
 		containerEl.createEl("p", {
 			text: "Create custom highlight palettes and choose which mark styles to use. "
 				+ "Select text in your note and use the command palette or right-click menu to apply highlights.",
@@ -249,7 +249,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 
 		// --- How to Use ---
 		const howTo = containerEl.createDiv("ch-how-to");
-		howTo.createEl("h3", { text: "How to Use" });
+		new Setting(howTo).setName("How to use").setHeading();
 		const steps = howTo.createEl("ol");
 		steps.createEl("li", { text: "Create highlight palettes below (or use the defaults)." });
 		steps.createEl("li", { text: "Enable the mark styles you want to use." });
@@ -262,7 +262,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 		});
 
 		// --- Styles Section ---
-		containerEl.createEl("h3", { text: "Styles" });
+		new Setting(containerEl).setName("Styles").setHeading();
 		containerEl.createEl("p", {
 			text: "Toggle which highlight styles are available when applying highlights. "
 				+ "Each style creates a different visual effect using the palette color.",
@@ -295,7 +295,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 		});
 
 		// --- Palettes Section ---
-		containerEl.createEl("h3", { text: "Palettes" });
+		new Setting(containerEl).setName("Palettes").setHeading();
 		containerEl.createEl("p", {
 			text: "Each palette defines a color used for highlights. "
 				+ "The palette ID becomes part of the CSS class name (e.g. hltr-m-pink). "
