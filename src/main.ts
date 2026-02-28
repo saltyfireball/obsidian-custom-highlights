@@ -67,17 +67,15 @@ const DEFAULT_SETTINGS: CustomHighlightsSettings = {
 
 export default class CustomHighlightsPlugin extends Plugin {
 	settings!: CustomHighlightsSettings;
-	private styleEl: HTMLStyleElement | null = null;
+	private styleSheet: CSSStyleSheet | null = null;
 	private toolbarButtons = new WeakMap<MarkdownView, HTMLElement>();
 
 	async onload() {
 		await this.loadSettings();
 
 		// Inject dynamic highlight CSS
-		// eslint-disable-next-line obsidianmd/no-forbidden-elements -- dynamic CSS generation requires a style element; styles.css cannot handle runtime palette changes
-		this.styleEl = document.createElement("style");
-		this.styleEl.id = "custom-highlights-styles";
-		document.head.appendChild(this.styleEl);
+		this.styleSheet = new CSSStyleSheet();
+		document.adoptedStyleSheets = [...document.adoptedStyleSheets, this.styleSheet];
 		this.updateHighlightCSS();
 
 		// Add highlighter toolbar button to active views
@@ -146,9 +144,9 @@ export default class CustomHighlightsPlugin extends Plugin {
 	}
 
 	onunload() {
-		if (this.styleEl) {
-			this.styleEl.remove();
-			this.styleEl = null;
+		if (this.styleSheet) {
+			document.adoptedStyleSheets = document.adoptedStyleSheets.filter(s => s !== this.styleSheet);
+			this.styleSheet = null;
 		}
 	}
 
@@ -182,11 +180,11 @@ export default class CustomHighlightsPlugin extends Plugin {
 	}
 
 	updateHighlightCSS(): void {
-		if (!this.styleEl) return;
-		this.styleEl.textContent = generateHighlightCSS(
+		if (!this.styleSheet) return;
+		this.styleSheet.replaceSync(generateHighlightCSS(
 			this.settings.palettes,
 			this.settings.styles,
-		);
+		));
 	}
 
 	async loadSettings() {
