@@ -190,12 +190,11 @@ export default class CustomHighlightsPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- loadData returns any
-		const saved = await this.loadData();
+		const saved = (await this.loadData()) as Partial<CustomHighlightsSettings> | null;
 		this.settings = Object.assign(
 			{},
 			JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as CustomHighlightsSettings,
-			(saved || {}) as Partial<CustomHighlightsSettings>,
+			saved ?? {},
 		);
 		// Ensure arrays exist (deep merge safety)
 		if (!Array.isArray(this.settings.styles)) {
