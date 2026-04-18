@@ -32,6 +32,8 @@ export interface HighlightPalette {
 	underlineColor: string;
 	fontSize: string;
 	fontWeight: string;
+	padding: string;
+	margin: string;
 	enabled: boolean;
 }
 
@@ -52,12 +54,12 @@ const DEFAULT_SETTINGS: CustomHighlightsSettings = {
 		{ id: "underline", label: "Underline", suffix: "-ul", enabled: false },
 	],
 	palettes: [
-		{ id: "pink", name: "Pink", color: "#ff6188", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
-		{ id: "yellow", name: "Yellow", color: "#ffd866", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
-		{ id: "orange", name: "Orange", color: "#fc9867", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
-		{ id: "green", name: "Green", color: "#a9dc76", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
-		{ id: "blue", name: "Blue", color: "#78dce8", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
-		{ id: "purple", name: "Purple", color: "#ab9df2", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", enabled: true },
+		{ id: "pink", name: "Pink", color: "#ff6188", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", padding: "", margin: "", enabled: true },
+		{ id: "yellow", name: "Yellow", color: "#ffd866", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", padding: "", margin: "", enabled: true },
+		{ id: "orange", name: "Orange", color: "#fc9867", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", padding: "", margin: "", enabled: true },
+		{ id: "green", name: "Green", color: "#a9dc76", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", padding: "", margin: "", enabled: true },
+		{ id: "blue", name: "Blue", color: "#78dce8", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", padding: "", margin: "", enabled: true },
+		{ id: "purple", name: "Purple", color: "#ab9df2", textColor: "", underlineColor: "", fontSize: "", fontWeight: "", padding: "", margin: "", enabled: true },
 	],
 	lastUsed: { paletteId: "pink", styleId: "base" },
 };
@@ -149,6 +151,16 @@ export default class CustomHighlightsPlugin extends Plugin {
 			document.adoptedStyleSheets = document.adoptedStyleSheets.filter(s => s !== this.styleSheet);
 			this.styleSheet = null;
 		}
+		// Remove toolbar buttons from all views
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view instanceof MarkdownView) {
+				const btn = this.toolbarButtons.get(leaf.view);
+				if (btn) {
+					btn.remove();
+					this.toolbarButtons.delete(leaf.view);
+				}
+			}
+		});
 	}
 
 	private setupToolbarButton(): void {
@@ -361,6 +373,34 @@ class PaletteEditModal extends Modal {
 			save();
 		});
 
+		// Padding
+		const paddingControl = contentEl.createDiv("ch-control");
+		paddingControl.createEl("label", { text: "Padding" });
+		const paddingInput = paddingControl.createEl("input", {
+			type: "text",
+			value: this.palette.padding || "",
+			placeholder: "e.g. 2px 0px (leave blank for default)",
+			cls: "ch-input",
+		});
+		paddingInput.addEventListener("change", () => {
+			this.palette.padding = paddingInput.value.trim();
+			save();
+		});
+
+		// Margin
+		const marginControl = contentEl.createDiv("ch-control");
+		marginControl.createEl("label", { text: "Margin" });
+		const marginInput = marginControl.createEl("input", {
+			type: "text",
+			value: this.palette.margin || "",
+			placeholder: "e.g. 0px (leave blank for default)",
+			cls: "ch-input",
+		});
+		marginInput.addEventListener("change", () => {
+			this.palette.margin = marginInput.value.trim();
+			save();
+		});
+
 		// Done button
 		const footer = contentEl.createDiv("ch-edit-footer");
 		const doneBtn = footer.createEl("button", { text: "Done", cls: "mod-cta" });
@@ -445,6 +485,8 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 				underlineColor: "",
 				fontSize: "",
 				fontWeight: "",
+				padding: "",
+				margin: "",
 				enabled: true,
 			});
 			void this.plugin.saveSettings();
