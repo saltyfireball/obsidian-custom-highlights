@@ -50,6 +50,30 @@ export function hexToRgb(value?: string): string | null {
 }
 
 /**
+ * Extract the alpha value (0-1) from a color string.
+ * Returns 1 if no alpha is specified.
+ */
+export function getColorAlpha(value?: string): number {
+	const trimmed = (value || "").trim();
+	if (!trimmed) return 1;
+
+	const rgbaMatch = trimmed.match(
+		/^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+(?:\s*,\s*([\d.]+))?\s*\)$/i,
+	);
+	if (rgbaMatch) {
+		return rgbaMatch[1] !== undefined
+			? Math.min(1, Math.max(0, parseFloat(rgbaMatch[1])))
+			: 1;
+	}
+
+	const hex = trimmed.replace(/^#/, "");
+	if (hex.length === 8) {
+		return parseInt(hex.slice(6, 8), 16) / 255;
+	}
+	return 1;
+}
+
+/**
  * Normalize a highlight palette ID to a safe CSS class fragment.
  */
 export function normalizeHighlightId(value?: string): string {

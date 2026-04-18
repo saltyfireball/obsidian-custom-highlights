@@ -137,6 +137,10 @@ export class HighlightPickerModal extends Modal {
 			swatch.dataset.paletteId = paletteId;
 			swatch.style.setProperty("--ch-palette-color", palette.color || "transparent");
 			swatch.style.backgroundColor = palette.color || "transparent";
+			if (palette.underlineColor?.trim()) {
+				swatch.setAttribute("data-has-underline", "true");
+				swatch.style.setProperty("--ch-underline-color", palette.underlineColor);
+			}
 			swatch.addEventListener("click", () => activatePalette(paletteId));
 			swatch.addEventListener("keydown", (event) => {
 				if (event.key === "Enter" || event.key === " ") {
