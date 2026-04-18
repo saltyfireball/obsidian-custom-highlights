@@ -1,6 +1,7 @@
 import {
 	Editor,
 	MarkdownView,
+	Modal,
 	Notice,
 	Plugin,
 	PluginSettingTab,
@@ -226,8 +227,158 @@ export default class CustomHighlightsPlugin extends Plugin {
 // Settings Tab
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Palette Edit Modal
+// ---------------------------------------------------------------------------
+
+class PaletteEditModal extends Modal {
+	private palette: HighlightPalette;
+	private plugin: CustomHighlightsPlugin;
+	private onSave: () => void;
+
+	constructor(app: App, plugin: CustomHighlightsPlugin, palette: HighlightPalette, onSave: () => void) {
+		super(app);
+		this.plugin = plugin;
+		this.palette = palette;
+		this.onSave = onSave;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass("ch-edit-modal");
+
+		contentEl.createEl("h3", { text: "Edit palette" });
+
+		// Preview
+		const previewBox = contentEl.createDiv("ch-edit-preview");
+		const previewMark = previewBox.createEl("mark", {
+			text: this.palette.name || this.palette.id,
+		});
+		previewMark.className = `hltr-m-${this.palette.id}`;
+
+		const save = () => {
+			void this.plugin.saveSettings();
+			this.plugin.updateHighlightCSS();
+			previewMark.className = `hltr-m-${this.palette.id}`;
+			previewMark.textContent = this.palette.name || this.palette.id;
+		};
+
+		// Name
+		const nameControl = contentEl.createDiv("ch-control");
+		nameControl.createEl("label", { text: "Name" });
+		const nameInput = nameControl.createEl("input", {
+			type: "text",
+			value: this.palette.name || "",
+			placeholder: "Display name",
+			cls: "ch-input",
+		});
+		nameInput.addEventListener("change", () => {
+			this.palette.name = nameInput.value.trim();
+			save();
+		});
+
+		// Class ID
+		const idControl = contentEl.createDiv("ch-control");
+		idControl.createEl("label", { text: "Class ID" });
+		const idInput = idControl.createEl("input", {
+			type: "text",
+			value: this.palette.id || "",
+			placeholder: "CSS class identifier",
+			cls: "ch-input ch-input-mono",
+		});
+		idInput.addEventListener("change", () => {
+			const normalized = normalizeHighlightId(idInput.value || this.palette.id || "");
+			if (!normalized) {
+				new Notice("Palette ID is required");
+				idInput.value = this.palette.id;
+				return;
+			}
+			this.palette.id = normalized;
+			idInput.value = normalized;
+			save();
+		});
+
+		// Highlight color
+		renderColorPicker({
+			container: contentEl,
+			label: "Highlight color",
+			value: this.palette.color || "",
+			onChange: (value) => { this.palette.color = value; save(); },
+		});
+
+		// Text color
+		renderColorPicker({
+			container: contentEl,
+			label: "Text color",
+			value: this.palette.textColor || "",
+			placeholder: "Text color (optional)",
+			onChange: (value) => { this.palette.textColor = value; save(); },
+		});
+
+		// Underline color
+		renderColorPicker({
+			container: contentEl,
+			label: "Underline color",
+			value: this.palette.underlineColor || "",
+			placeholder: "Underline color (optional)",
+			onChange: (value) => { this.palette.underlineColor = value; save(); },
+		});
+
+		// Font size
+		const fontSizeControl = contentEl.createDiv("ch-control");
+		fontSizeControl.createEl("label", { text: "Font size" });
+		const fontSizeInput = fontSizeControl.createEl("input", {
+			type: "text",
+			value: this.palette.fontSize || "",
+			placeholder: "Font size (optional, e.g. 14px)",
+			cls: "ch-input",
+		});
+		fontSizeInput.addEventListener("change", () => {
+			this.palette.fontSize = fontSizeInput.value.trim();
+			save();
+		});
+
+		// Font weight
+		const fontWeightControl = contentEl.createDiv("ch-control");
+		fontWeightControl.createEl("label", { text: "Font weight" });
+		const fontWeightSelect = fontWeightControl.createEl("select", { cls: "ch-input" });
+		for (const opt of [
+			{ label: "Default", value: "" },
+			{ label: "Light", value: "300" },
+			{ label: "Normal", value: "400" },
+			{ label: "Medium", value: "500" },
+			{ label: "Semibold", value: "600" },
+			{ label: "Bold", value: "700" },
+			{ label: "Extra Bold", value: "800" },
+			{ label: "Black", value: "900" },
+		]) {
+			fontWeightSelect.createEl("option", { text: opt.label, value: opt.value });
+		}
+		fontWeightSelect.value = this.palette.fontWeight || "";
+		fontWeightSelect.addEventListener("change", () => {
+			this.palette.fontWeight = fontWeightSelect.value;
+			save();
+		});
+
+		// Done button
+		const footer = contentEl.createDiv("ch-edit-footer");
+		const doneBtn = footer.createEl("button", { text: "Done", cls: "mod-cta" });
+		doneBtn.addEventListener("click", () => this.close());
+	}
+
+	onClose(): void {
+		this.onSave();
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Settings Tab
+// ---------------------------------------------------------------------------
+
 class CustomHighlightsSettingTab extends PluginSettingTab {
 	plugin: CustomHighlightsPlugin;
+	private dragSourceIndex: number | null = null;
 
 	constructor(app: App, plugin: CustomHighlightsPlugin) {
 		super(app, plugin);
@@ -239,35 +390,14 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.addClass("ch-settings");
 
-		// --- Header ---
-		;
 		containerEl.createEl("p", {
 			text: "Create custom highlight palettes and choose which mark styles to use. "
 				+ "Select text in your note and use the command palette or right-click menu to apply highlights.",
 			cls: "ch-hint",
 		});
 
-		// --- How to Use ---
-		const howTo = containerEl.createDiv("ch-how-to");
-		new Setting(howTo).setName("How to use").setHeading();
-		const steps = howTo.createEl("ol");
-		steps.createEl("li", { text: "Create highlight palettes below (or use the defaults)." });
-		steps.createEl("li", { text: "Enable the mark styles you want to use." });
-		steps.createEl("li", { text: "Select text in your note." });
-		steps.createEl("li", { text: "Use \"Apply highlight\" from the command palette (Ctrl/Cmd+P) or right-click menu." });
-		steps.createEl("li", { text: "Pick a palette and style, then click apply." });
-		howTo.createEl("p", {
-			text: "Tip: use \"apply last highlight\" to quickly re-apply your most recent choice.",
-			cls: "ch-hint",
-		});
-
 		// --- Styles Section ---
 		new Setting(containerEl).setName("Styles").setHeading();
-		containerEl.createEl("p", {
-			text: "Toggle which highlight styles are available when applying highlights. "
-				+ "Each style creates a different visual effect using the palette color.",
-			cls: "ch-hint",
-		});
 
 		const styleDescriptions: Record<string, string> = {
 			base: "Gradient background with rounded corners",
@@ -283,7 +413,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 		styles.forEach((style) => {
 			new Setting(containerEl)
 				.setName(style.label)
-				.setDesc(styleDescriptions[style.id] || (style.suffix ? `Class suffix: ${style.suffix}` : "Base highlight style"))
+				.setDesc(styleDescriptions[style.id] || "")
 				.addToggle((toggle) => {
 					toggle.setValue(!!style.enabled);
 					toggle.onChange((value) => {
@@ -297,9 +427,7 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 		// --- Palettes Section ---
 		new Setting(containerEl).setName("Palettes").setHeading();
 		containerEl.createEl("p", {
-			text: "Each palette defines a color used for highlights. "
-				+ "The palette ID becomes part of the CSS class name (e.g. hltr-m-pink). "
-				+ "Changing an ID will affect any existing highlights that use it.",
+			text: "Drag to reorder. Order here matches the selection modal.",
 			cls: "ch-hint",
 		});
 
@@ -335,54 +463,61 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 
 		const list = containerEl.createDiv("ch-palette-list");
 		palettes.forEach((palette, index) => {
-			this.renderPaletteItem(list, palette, index);
+			this.renderPaletteRow(list, palette, index);
 		});
 	}
 
-	private renderPaletteItem(
+	private renderPaletteRow(
 		list: HTMLElement,
 		palette: HighlightPalette,
 		index: number,
 	): void {
-		const item = list.createDiv("ch-palette-item");
-		const header = item.createDiv("ch-palette-header");
+		const row = list.createDiv("ch-palette-row");
+		row.setAttribute("draggable", "true");
+		row.dataset.index = String(index);
 
-		// Preview
-		const preview = header.createDiv("ch-palette-preview");
-		const previewMark = preview.createEl("mark", {
-			text: palette.name || palette.id,
-		});
-		previewMark.className = `hltr-m-${palette.id}`;
+		// Drag handle
+		const handle = row.createDiv("ch-drag-handle");
+		handle.textContent = "\u2261";
+		handle.setAttribute("aria-label", "Drag to reorder");
 
-		// Actions
-		const actions = header.createDiv("ch-palette-actions");
-		const enabledToggle = actions.createEl("input", {
-			type: "checkbox",
-			cls: "ch-toggle",
-		});
-		enabledToggle.checked = palette.enabled !== false;
-		enabledToggle.addEventListener("change", () => {
-			palette.enabled = enabledToggle.checked;
+		// Color swatch
+		const swatch = row.createDiv("ch-row-swatch");
+		swatch.style.backgroundColor = palette.color || "transparent";
+		if (palette.underlineColor?.trim()) {
+			const line = swatch.createDiv("ch-row-swatch-underline");
+			line.style.backgroundColor = palette.underlineColor;
+		}
+
+		// Name
+		const name = row.createDiv("ch-row-name");
+		name.textContent = palette.name || palette.id;
+
+		// Class ID
+		const classId = row.createDiv("ch-row-id");
+		classId.textContent = palette.id;
+
+		// Toggle
+		const toggle = row.createEl("input", { type: "checkbox", cls: "checkbox-container" });
+		(toggle as HTMLInputElement).checked = palette.enabled !== false;
+		toggle.addEventListener("change", () => {
+			palette.enabled = (toggle as HTMLInputElement).checked;
 			void this.plugin.saveSettings();
 			this.plugin.updateHighlightCSS();
 		});
 
-		const editButton = actions.createEl("button", { text: "Edit" });
-		const removeBtn = actions.createEl("button", {
-			text: "Remove",
-			cls: "ch-remove-btn",
+		// Edit button
+		const editBtn = row.createEl("button", { text: "Edit", cls: "ch-row-btn" });
+		editBtn.addEventListener("click", () => {
+			new PaletteEditModal(this.app, this.plugin, palette, () => {
+				this.display();
+			}).open();
 		});
 
-		// Expandable controls
-		const controls = item.createDiv("ch-palette-controls");
-		controls.addClass("ch-hidden");
-
-		editButton.addEventListener("click", () => {
-			const isHidden = controls.hasClass("ch-hidden");
-			controls.toggleClass("ch-hidden", !isHidden);
-			editButton.textContent = isHidden ? "Hide" : "Edit";
-		});
-
+		// Remove button
+		const removeBtn = row.createEl("button", { cls: "ch-row-btn ch-row-btn-danger" });
+		removeBtn.textContent = "\u00D7";
+		removeBtn.setAttribute("aria-label", "Remove");
 		removeBtn.addEventListener("click", () => {
 			this.plugin.settings.palettes.splice(index, 1);
 			void this.plugin.saveSettings();
@@ -390,125 +525,40 @@ class CustomHighlightsSettingTab extends PluginSettingTab {
 			this.display();
 		});
 
-		// Name
-		const nameControl = controls.createDiv("ch-control");
-		nameControl.createEl("label", { text: "Name" });
-		const nameInput = nameControl.createEl("input", {
-			type: "text",
-			value: palette.name || "",
-			placeholder: "Display name",
-			cls: "ch-input",
+		// Drag events
+		row.addEventListener("dragstart", (e) => {
+			this.dragSourceIndex = index;
+			row.addClass("ch-dragging");
+			e.dataTransfer?.setData("text/plain", String(index));
 		});
-		nameInput.addEventListener("change", () => {
-			palette.name = nameInput.value.trim();
-			previewMark.textContent = palette.name || palette.id;
+
+		row.addEventListener("dragend", () => {
+			this.dragSourceIndex = null;
+			row.removeClass("ch-dragging");
+			list.querySelectorAll(".ch-drag-over").forEach((el) => el.removeClass("ch-drag-over"));
+		});
+
+		row.addEventListener("dragover", (e) => {
+			e.preventDefault();
+			if (this.dragSourceIndex === null || this.dragSourceIndex === index) return;
+			list.querySelectorAll(".ch-drag-over").forEach((el) => el.removeClass("ch-drag-over"));
+			row.addClass("ch-drag-over");
+		});
+
+		row.addEventListener("dragleave", () => {
+			row.removeClass("ch-drag-over");
+		});
+
+		row.addEventListener("drop", (e) => {
+			e.preventDefault();
+			row.removeClass("ch-drag-over");
+			if (this.dragSourceIndex === null || this.dragSourceIndex === index) return;
+			const palettes = this.plugin.settings.palettes;
+			const [moved] = palettes.splice(this.dragSourceIndex, 1);
+			palettes.splice(index, 0, moved);
+			this.dragSourceIndex = null;
 			void this.plugin.saveSettings();
-		});
-
-		// Class ID
-		const idControl = controls.createDiv("ch-control");
-		idControl.createEl("label", { text: "Class ID" });
-		const idInput = idControl.createEl("input", {
-			type: "text",
-			value: palette.id || "",
-			placeholder: "CSS class identifier",
-			cls: "ch-input ch-input-mono",
-		});
-		idInput.addEventListener("change", () => {
-			const normalized = normalizeHighlightId(idInput.value || palette.id || "");
-			if (!normalized) {
-				new Notice("Palette ID is required");
-				idInput.value = palette.id;
-				return;
-			}
-			palette.id = normalized;
-			idInput.value = normalized;
-			previewMark.className = `hltr-m-${palette.id}`;
-			previewMark.textContent = palette.name || palette.id;
-			void this.plugin.saveSettings();
-			this.plugin.updateHighlightCSS();
-		});
-
-		// Highlight color (using the reusable color picker)
-		renderColorPicker({
-			container: controls,
-			label: "Highlight color",
-			value: palette.color || "",
-			onChange: (value) => {
-				palette.color = value;
-				void this.plugin.saveSettings();
-				this.plugin.updateHighlightCSS();
-			},
-		});
-
-		// Text color
-		renderColorPicker({
-			container: controls,
-			label: "Text color",
-			value: palette.textColor || "",
-			placeholder: "Text color (optional)",
-			onChange: (value) => {
-				palette.textColor = value;
-				void this.plugin.saveSettings();
-				this.plugin.updateHighlightCSS();
-			},
-		});
-
-		// Underline color
-		renderColorPicker({
-			container: controls,
-			label: "Underline color",
-			value: palette.underlineColor || "",
-			placeholder: "Underline color (optional)",
-			onChange: (value) => {
-				palette.underlineColor = value;
-				void this.plugin.saveSettings();
-				this.plugin.updateHighlightCSS();
-			},
-		});
-
-		// Font size
-		const fontSizeControl = controls.createDiv("ch-control");
-		fontSizeControl.createEl("label", { text: "Font size" });
-		const fontSizeInput = fontSizeControl.createEl("input", {
-			type: "text",
-			value: palette.fontSize || "",
-			placeholder: "Font size (optional, e.g. 14px)",
-			cls: "ch-input",
-		});
-		fontSizeInput.addEventListener("change", () => {
-			palette.fontSize = fontSizeInput.value.trim();
-			void this.plugin.saveSettings();
-			this.plugin.updateHighlightCSS();
-		});
-
-		// Font weight
-		const fontWeightControl = controls.createDiv("ch-control");
-		fontWeightControl.createEl("label", { text: "Font weight" });
-		const fontWeightSelect = fontWeightControl.createEl("select", {
-			cls: "ch-input",
-		});
-		const fontWeightOptions = [
-			{ label: "Default", value: "" },
-			{ label: "Light", value: "300" },
-			{ label: "Normal", value: "400" },
-			{ label: "Medium", value: "500" },
-			{ label: "Semibold", value: "600" },
-			{ label: "Bold", value: "700" },
-			{ label: "Extra Bold", value: "800" },
-			{ label: "Black", value: "900" },
-		];
-		fontWeightOptions.forEach((opt) => {
-			fontWeightSelect.createEl("option", {
-				text: opt.label,
-				value: opt.value,
-			});
-		});
-		fontWeightSelect.value = palette.fontWeight || "";
-		fontWeightSelect.addEventListener("change", () => {
-			palette.fontWeight = fontWeightSelect.value;
-			void this.plugin.saveSettings();
-			this.plugin.updateHighlightCSS();
+			this.display();
 		});
 	}
 }

@@ -52,48 +52,117 @@
 	margin-top: 1em;
 }
 
-.ch-palette-item {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	padding: 12px;
-	background: var(--background-secondary);
-	border-radius: 10px;
-}
-
-.ch-palette-header {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	flex-wrap: wrap;
-}
-
-.ch-palette-preview {
-	max-width: min(260px, 70vw);
-}
-
-.ch-palette-preview mark {
-	display: inline-block;
-	padding: 4px 10px;
-	border-radius: 999px;
-	white-space: pre-wrap;
-	word-break: break-word;
-}
-
-.ch-palette-actions {
-	margin-left: auto;
+/* Compact palette row */
+.ch-palette-row {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	background: var(--background-secondary);
+	cursor: grab;
+	transition: background 0.1s, opacity 0.2s;
 }
 
-.ch-remove-btn {
+.ch-palette-row:hover {
+	background: var(--background-modifier-hover);
+}
+
+.ch-palette-row.ch-dragging {
+	opacity: 0.4;
+}
+
+.ch-palette-row.ch-drag-over {
+	border-top: 2px solid var(--interactive-accent);
+	padding-top: 4px;
+}
+
+.ch-drag-handle {
+	font-size: 18px;
+	color: var(--text-faint);
+	cursor: grab;
+	user-select: none;
+	flex-shrink: 0;
+	width: 16px;
+	text-align: center;
+}
+
+.ch-row-swatch {
+	width: 24px;
+	height: 24px;
+	border-radius: 6px;
+	flex-shrink: 0;
+	position: relative;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.ch-row-swatch-underline {
+	position: absolute;
+	bottom: 2px;
+	left: 4px;
+	right: 4px;
+	height: 2px;
+	border-radius: 1px;
+}
+
+.ch-row-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+}
+
+.ch-row-id {
+	color: var(--text-faint);
+	font-size: 11px;
+	font-family: var(--font-monospace);
+	flex-shrink: 0;
+	max-width: 140px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ch-row-btn {
+	flex-shrink: 0;
+	font-size: 12px;
+	padding: 2px 8px;
+	cursor: pointer;
+}
+
+.ch-row-btn-danger {
 	color: var(--text-error);
+	font-size: 16px;
+	font-weight: 700;
+	padding: 2px 6px;
 }
 
-.ch-toggle {
-	width: 18px;
-	height: 18px;
+/* Edit modal */
+.ch-edit-modal {
+	max-width: 520px;
+}
+
+.ch-edit-modal h3 {
+	margin-top: 0;
+}
+
+.ch-edit-preview {
+	margin-bottom: 16px;
+	padding: 8px 12px;
+	background: var(--background-primary);
+	border-radius: 6px;
+}
+
+.ch-edit-preview mark {
+	display: inline-block;
+	padding: 4px 10px;
+}
+
+.ch-edit-footer {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 16px;
 }
 
 /* ---------------------------------------------------------------------------
