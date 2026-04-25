@@ -10,12 +10,15 @@ Create custom highlight palettes with multiple mark styles for your Obsidian not
 
 ## Features
 
-- **Custom color palettes** -- Define as many highlight colors as you need with full color customization
+- **Custom color palettes** -- Define as many highlight colors as you need with full color and alpha support
 - **7 highlight styles** -- Classic, Skewed, Soft Glow, Bottom Heavy, Marker Stroke, Full, and Underline
 - **Mix and match** -- Any palette color can be used with any enabled style
-- **Quick apply** -- Apply highlights from the command palette, editor context menu, or keyboard shortcuts
+- **Quick apply** -- Apply highlights from the command palette, editor context menu, toolbar button, or keyboard shortcuts
 - **Re-apply last** -- Quickly re-apply your most recent highlight choice with a single command
-- **Per-palette customization** -- Set text color, underline color, font size, and font weight per palette
+- **Per-palette customization** -- Set text color, underline color, font size, font weight, padding, and margin per palette
+- **Underline support** -- Set an underline color on any palette and underlines apply across all styles automatically
+- **Alpha/opacity support** -- Full hex alpha support (#RRGGBBAA) -- use transparent backgrounds for underline-only highlights
+- **Drag-to-reorder** -- Reorder palettes in settings; order matches the selection modal
 - **Live preview** -- See exactly how your highlight will look before applying
 - **Mobile support** -- Works on both desktop and mobile
 
@@ -99,19 +102,21 @@ Toggle which highlight styles are available. Disabled styles will not appear in 
 
 ### Palettes
 
-Each palette defines a highlight color. For each palette you can configure:
+Palettes are displayed as a compact, drag-to-reorder list. The order in settings matches the order shown in the selection modal. Click **Edit** on any palette to open a modal with all options:
 
 - **Name** -- Display name shown in the picker
 - **Class ID** -- CSS class identifier (e.g. `pink` becomes `hltr-m-pink`). Changing this affects existing highlights
-- **Highlight color** -- The main background color (#RRGGBB, #RRGGBBAA, rgb(), rgba())
+- **Highlight color** -- The main background color (#RRGGBB or #RRGGBBAA for alpha). Set to `#00000000` for fully transparent (useful for underline-only highlights)
 - **Text color** -- Override the text color (optional)
-- **Underline color** -- Color for the underline style (optional)
+- **Underline color** -- Set a color to add an underline across all styles for this palette (optional). Leave blank for no underline
 - **Font size** -- Override font size (optional, e.g. `14px`)
 - **Font weight** -- Override font weight (optional, Light through Black)
+- **Padding** -- Override padding (optional, e.g. `2px 0px`). Leave blank for each style's default
+- **Margin** -- Override margin (optional, e.g. `0px`). Leave blank for each style's default
 
 ### Default Palettes
 
-The plugin ships with 6 palettes: Pink, Yellow, Orange, Green, Blue, and Purple. You can modify or remove these and add your own.
+The plugin ships with 6 palettes: Pink, Yellow, Orange, Green, Blue, and Purple. You can modify, remove, or reorder these and add your own.
 
 ## CSS Class Format
 
@@ -128,7 +133,18 @@ You can use these classes directly in HTML if you prefer manual markup:
 <mark class="hltr-m-pink-marker-stroke">important note</mark>
 ```
 
-## Custom CSS
+## Tips
+
+### Underline-only highlights
+
+To create a highlight that only shows an underline with no background:
+
+1. Create a new palette
+2. Set the highlight color to `#00000000` (fully transparent)
+3. Set the underline color to your desired color (e.g. `#ff6188`)
+4. Set padding to `0px` to remove extra spacing
+
+### Custom CSS
 
 The plugin generates CSS dynamically based on your settings. If you need additional customization, you can add CSS snippets in Obsidian that target the `hltr-m-*` classes.
 
